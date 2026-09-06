@@ -16,11 +16,11 @@ Discovery_Queries=[
     "latest AI research breakthroughs",
     "latest AI policy developments",
 ]
-def expand_time_window(time_window: str,days: int,) -> str:
+def expand_time_window(time_window: str, days: int) -> str:
 
-    start_text, end_text = time_window.strip().split("to",maxsplit=1,)
+    start_text, end_text = time_window.split("to", maxsplit=1)
 
-    start = datetime.fromisoformat(start_text)
+    start = datetime.fromisoformat(start_text.strip())
     end = datetime.fromisoformat(end_text.strip())
 
     new_start = end - timedelta(days=days)
