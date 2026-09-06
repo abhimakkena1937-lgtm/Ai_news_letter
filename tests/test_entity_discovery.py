@@ -1,45 +1,21 @@
 import asyncio
 
-from nodes.planner import planner_node
-from nodes.discovery_agent import discovery_agent_node
+from nodes.discovery_agent import discover_web_results
 
 
 async def main():
+    time_window = "2026-09-05T16:10:04.556151+00:00 to 2026-09-06T16:10:04.556151+00:00"
 
-    # 1. Run Planner
-    planner_state = await planner_node({})
+    results = await discover_web_results(time_window)
 
-    print("\n" + "=" * 70)
-    print("PLANNER")
-    print("=" * 70)
-    print("DATE:", planner_state["date"])
-    print("TIME WINDOW:", planner_state["time_window"])
+    print("\n" + "=" * 80)
+    print("DISCOVERY TEST COMPLETE")
+    print("=" * 80)
+    print("Results:", len(results))
 
-    # 2. Pass Planner state to Discovery
-    result = await discovery_agent_node(
-        planner_state
-    )
-
-    entities = result.get(
-        "discovered_entities",
-        []
-    )
-
-    print("\n" + "=" * 70)
-    print("DISCOVERY")
-    print("=" * 70)
-    print("ENTITIES:", len(entities))
-
-    for entity in entities:
-        print("\n" + "-" * 70)
-        print("NAME:", entity.name)
-        print("TYPE:", entity.entity_type)
-        print("REASON:", entity.reason)
-
-    print("\nPROGRESS:")
-
-    for item in result.get("progress", []):
-        print("-", item)
+    for result in results[:5]:
+        print("\nTitle:", result.get("title"))
+        print("URL:", result.get("url"))
 
 
 if __name__ == "__main__":

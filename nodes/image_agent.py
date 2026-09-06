@@ -4,14 +4,14 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
-
+from utils.gemini_limiter import gemini_semaphore
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from config import GEMINI_MODEL
 from prompts import (
     IMAGE_SYSTEM_PROMPT,
-    IMAGE_USER_PROMPT
+    IMAGE_USER_PROMPT,
 )
 from state import NewsLetterState
 from schemas import RankedContext
@@ -21,7 +21,7 @@ from tools.web_search import tavily_search
 def get_image_llm():
     return ChatGoogleGenerativeAI(
         model=GEMINI_MODEL,
-        temperature=0
+        temperature=0,
     )
 
 
@@ -156,7 +156,7 @@ async def image_agent_node(
     # NEWS
     # --------------------------------------------------
 
-    for item in ranked_context.top_news:
+    for item in ranked_context.top_news[:10]:
 
         query = (
             f"{item.title} "
@@ -182,7 +182,7 @@ async def image_agent_node(
     # STARTUPS
     # --------------------------------------------------
 
-    for item in ranked_context.top_start_ups:
+    for item in ranked_context.top_start_ups[:10]:
 
         query = (
             f"{item.startup_name} AI startup"
@@ -206,7 +206,7 @@ async def image_agent_node(
     # PEOPLE
     # --------------------------------------------------
 
-    for item in ranked_context.top_tweets:
+    for item in ranked_context.top_tweets[:10]:
 
         query = (
             f"{item.person} AI"
@@ -230,7 +230,7 @@ async def image_agent_node(
     # GITHUB
     # --------------------------------------------------
 
-    for item in ranked_context.top_github_repos:
+    for item in ranked_context.top_github_repos[:10]:
 
         query = (
             f"{item.repo_name} GitHub AI"
@@ -254,7 +254,7 @@ async def image_agent_node(
     # PAPERS
     # --------------------------------------------------
 
-    for item in ranked_context.top_papers:
+    for item in ranked_context.top_papers[:10]:
 
         query = (
             f"{item.title} AI research paper"
@@ -280,24 +280,35 @@ async def image_agent_node(
     )
 
     # --------------------------------------------------
+    # Limit image candidates sent to Gemini
+    # --------------------------------------------------
+
+    image_results = image_results[:50]
+
+    print(
+        f"Image candidates sent to Gemini: "
+        f"{len(image_results)}"
+    )
+
+    # --------------------------------------------------
     # GEMINI IMAGE SELECTION
     # --------------------------------------------------
 
     llm = get_image_llm().with_structured_output(
         RankedContext
     )
-
-    response = await llm.ainvoke([
-        SystemMessage(
-            content=IMAGE_SYSTEM_PROMPT
-        ),
-        HumanMessage(
-            content=IMAGE_USER_PROMPT.format(
-                ranked_context=ranked_context,
-                image_results=image_results
+    async with gemini_semaphore:
+        response = await llm.ainvoke([
+            SystemMessage(
+                content=IMAGE_SYSTEM_PROMPT
+            ),
+            HumanMessage(
+                content=IMAGE_USER_PROMPT.format(
+                    ranked_context=ranked_context,
+                    image_results=image_results
+                )
             )
-        )
-    ])
+        ])
 
     print("IMAGE AGENT COMPLETE")
 

@@ -1,5 +1,5 @@
 import asyncio
-
+from utils.gemini_limiter import gemini_semaphore
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -159,6 +159,21 @@ async def extract_papers(
         len(research_results)
     )
 
+    # Limit research sent to Gemini
+    research_results = research_results[:10]
+
+    print(
+        "\nPAPER RESULTS SENT TO GEMINI:",
+        len(research_results)
+    )
+
+    research_results = research_results[:10]
+
+    print(
+        "\nPAPER RESULTS SENT TO GEMINI:",
+        len(research_results)
+    )
+
     research_text = format_research(
         research_results
     )
@@ -173,22 +188,22 @@ async def extract_papers(
 
     llm = get_paper_llm()
 
-    response = await llm.ainvoke(
-        [
-            SystemMessage(
-                content=PAPER_EXTRACTION_SYSTEM_PROMPT
-            ),
-            HumanMessage(
-                content=PAPER_EXTRACTION_USER_PROMPT.format(
-                    research_results=research_text,
-                    time_window=time_window,
-                )
-            ),
-        ]
-    )
+    async with gemini_semaphore:
+        response = await llm.ainvoke(
+            [
+                SystemMessage(
+                    content=PAPER_EXTRACTION_SYSTEM_PROMPT
+                ),
+                HumanMessage(
+                    content=PAPER_EXTRACTION_USER_PROMPT.format(
+                        research_results=research_text,
+                        time_window=time_window,
+                    )
+                ),
+            ]
+        )
 
     return response.papers
-
 
 async def paper_agent_node(
     state: NewsLetterState,

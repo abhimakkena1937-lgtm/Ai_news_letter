@@ -1,6 +1,6 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-
+from utils.gemini_limiter import gemini_semaphore
 from config import GEMINI_MODEL
 from prompts import (
     REDUCER_SYSTEM_PROMPT,
@@ -15,7 +15,9 @@ def get_reducer_llm():
     return ChatGoogleGenerativeAI(
         model=GEMINI_MODEL,
         temperature=0,
-    ).with_structured_output(RankedContext)
+    ).with_structured_output(
+        RankedContext
+    )
 
 
 async def reducer_node(
@@ -38,6 +40,30 @@ async def reducer_node(
     print("GITHUB REPOS:", len(github_repos))
     print("PAPERS:", len(papers))
 
+    # ---------------------------------------------------------
+    # Limit data sent to Gemini
+    # ---------------------------------------------------------
+
+    news = news[:10]
+    startups = startups[:10]
+    tweets = tweets[:10]
+    github_repos = github_repos[:10]
+    papers = papers[:10]
+
+    print("\n" + "=" * 80)
+    print("DATA SENT TO GEMINI")
+    print("=" * 80)
+
+    print("NEWS:", len(news))
+    print("STARTUPS:", len(startups))
+    print("TWEETS:", len(tweets))
+    print("GITHUB REPOS:", len(github_repos))
+    print("PAPERS:", len(papers))
+
+    # ---------------------------------------------------------
+    # Prepare research data
+    # ---------------------------------------------------------
+
     research_data = {
         "news": news,
         "startups": startups,
@@ -46,22 +72,31 @@ async def reducer_node(
         "papers": papers,
     }
 
-    llm = get_reducer_llm()
+    # ---------------------------------------------------------
+    # Gemini
+    # ---------------------------------------------------------
 
-    response = await llm.ainvoke(
-        [
-            SystemMessage(
-                content=REDUCER_SYSTEM_PROMPT
-            ),
-            HumanMessage(
-                content=REDUCER_USER_PROMPT.format(
-                    research_data=research_data
-                )
-            ),
-        ]
-    )
+    llm = get_reducer_llm()
+    async with gemini_semaphore:
+        response = await llm.ainvoke(
+            [
+                SystemMessage(
+                    content=REDUCER_SYSTEM_PROMPT
+                ),
+
+                HumanMessage(
+                    content=REDUCER_USER_PROMPT.format(
+                        research_data=research_data
+                    )
+                ),
+            ]
+        )
 
     ranked_context = response
+
+    # ---------------------------------------------------------
+    # Debug output
+    # ---------------------------------------------------------
 
     print("\n" + "=" * 80)
     print("REDUCED CONTEXT")

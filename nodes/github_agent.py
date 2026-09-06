@@ -2,7 +2,7 @@ import asyncio
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-
+from utils.gemini_limiter import gemini_semaphore
 from config import GEMINI_MODEL
 from prompts import (
     GITHUB_EXTRACTION_SYSTEM_PROMPT,
@@ -60,7 +60,11 @@ async def search_github_sources(
         return results
 
     except Exception as e:
-        print("GITHUB SEARCH ERROR:", repr(e))
+        print(
+            "GITHUB SEARCH ERROR:",
+            repr(e)
+        )
+
         return []
 
 
@@ -68,7 +72,9 @@ async def search_github_sources(
 # Run all GitHub searches in parallel
 # ---------------------------------------------------------
 
-async def research_github(time_window: str) -> list[dict]:
+async def research_github(
+    time_window: str,
+) -> list[dict]:
 
     results = await asyncio.gather(
         *(
@@ -86,13 +92,19 @@ async def research_github(time_window: str) -> list[dict]:
     for result in results:
 
         if isinstance(result, Exception):
-            print("GITHUB RESEARCH ERROR:", repr(result))
+            print(
+                "GITHUB RESEARCH ERROR:",
+                repr(result)
+            )
             continue
 
         combined.extend(result)
 
     print("\n" + "=" * 80)
-    print("TOTAL RAW GITHUB RESULTS:", len(combined))
+    print(
+        "TOTAL RAW GITHUB RESULTS:",
+        len(combined)
+    )
     print("=" * 80)
 
     return combined
@@ -102,7 +114,9 @@ async def research_github(time_window: str) -> list[dict]:
 # Deduplicate search results
 # ---------------------------------------------------------
 
-def deduplicate_results(results: list[dict]) -> list[dict]:
+def deduplicate_results(
+    results: list[dict],
+) -> list[dict]:
 
     seen = set()
     unique = []
@@ -134,7 +148,9 @@ def get_github_llm():
     return ChatGoogleGenerativeAI(
         model=GEMINI_MODEL,
         temperature=0,
-    ).with_structured_output(GitHubItems)
+    ).with_structured_output(
+        GitHubItems
+    )
 
 
 # ---------------------------------------------------------
@@ -150,10 +166,14 @@ async def extract_github(
     )
 
     if not research_results:
-        print("NO GITHUB RESEARCH RESULTS")
+
+        print(
+            "NO GITHUB RESEARCH RESULTS"
+        )
+
         return []
 
-    # Remove duplicate URLs before sending to Gemini
+    # Remove duplicate URLs
     research_results = deduplicate_results(
         research_results
     )
@@ -163,31 +183,44 @@ async def extract_github(
         len(research_results)
     )
 
+    # Limit research sent to Gemini
+    research_results = research_results[:10]
+
+    print(
+        "\nGITHUB RESULTS SENT TO GEMINI:",
+        len(research_results)
+    )
+
     research_text = format_research(
         research_results
     )
 
     print("\n" + "#" * 80)
-    print("GITHUB RESEARCH EVIDENCE")
+    print(
+        "GITHUB RESEARCH EVIDENCE"
+    )
     print("#" * 80)
 
-    print(research_text[:10000])
+    print(
+        research_text[:10000]
+    )
 
     llm = get_github_llm()
+    async with gemini_semaphore:
+        response = await llm.ainvoke(
+            [
+                SystemMessage(
+                    content=GITHUB_EXTRACTION_SYSTEM_PROMPT
+                ),
 
-    response = await llm.ainvoke(
-        [
-            SystemMessage(
-                content=GITHUB_EXTRACTION_SYSTEM_PROMPT
-            ),
-            HumanMessage(
-                content=GITHUB_EXTRACTION_USER_PROMPT.format(
-                    research_results=research_text,
-                    time_window=time_window,
-                )
-            ),
-        ]
-    )
+                HumanMessage(
+                    content=GITHUB_EXTRACTION_USER_PROMPT.format(
+                        research_results=research_text,
+                        time_window=time_window,
+                    )
+                ),
+            ]
+        )
 
     return response.repositories
 
@@ -207,8 +240,10 @@ async def github_agent_node(
     print("RUNNING GITHUB AGENT")
     print("=" * 80)
 
-    print("PLANNER TIME WINDOW:")
-    print(time_window)
+    print(
+        "PLANNER TIME WINDOW:",
+        time_window
+    )
 
     repositories = await extract_github(
         time_window
@@ -223,16 +258,36 @@ async def github_agent_node(
         start=1,
     ):
 
-        print(f"\n{i}. {repo.repo_name}")
-        print("Description:", repo.description)
-        print("GitHub URL:", repo.url)
-        print("Reason:", repo.reason)
+        print(
+            f"\n{i}. {repo.repo_name}"
+        )
+
+        print(
+            "Description:",
+            repo.description
+        )
+
+        print(
+            "GitHub URL:",
+            repo.url
+        )
+
+        print(
+            "Reason:",
+            repo.reason
+        )
 
         if repo.stars is not None:
-            print("Stars:", repo.stars)
+            print(
+                "Stars:",
+                repo.stars
+            )
 
         if repo.language:
-            print("Language:", repo.language)
+            print(
+                "Language:",
+                repo.language
+            )
 
     print(
         "\nTOTAL GITHUB REPOSITORIES:",

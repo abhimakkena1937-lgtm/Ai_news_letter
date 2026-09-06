@@ -3,11 +3,13 @@ import asyncio
 from tools.web_search import tavily_search, format_research
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
-
+from utils.gemini_limiter import gemini_semaphore
 from config import GEMINI_MODEL
 from schemas import DiscoveredEntity, TweetItems
-from prompts import PEOPLE_EXTRACTION_SYSTEM_PROMPT
-from prompts import PEOPLE_EXTRACTION_USER_PROMPT
+from prompts import (
+    PEOPLE_EXTRACTION_SYSTEM_PROMPT,
+    PEOPLE_EXTRACTION_USER_PROMPT,
+)
 from state import NewsLetterState
 
 
@@ -117,7 +119,10 @@ async def targeted_people_research(
     for result in results:
 
         if isinstance(result, Exception):
-            print("PEOPLE RESEARCH ERROR:", repr(result))
+            print(
+                "PEOPLE RESEARCH ERROR:",
+                repr(result)
+            )
             continue
 
         combined.extend(result)
@@ -189,6 +194,19 @@ async def extract_people(
         research_results
     )
 
+    print(
+        "\nUNIQUE PEOPLE RESULTS:",
+        len(research_results)
+    )
+
+    # Limit research sent to Gemini
+    research_results = research_results[:10]
+
+    print(
+        "\nPEOPLE RESULTS SENT TO GEMINI:",
+        len(research_results)
+    )
+
     research_text = format_research(
         research_results
     )
@@ -197,24 +215,26 @@ async def extract_people(
     print("PEOPLE RESEARCH")
     print("#" * 80)
 
-    print(research_text[:5000])
+    print(
+        research_text[:5000]
+    )
 
     llm = get_people_llm()
 
-    response = await llm.ainvoke(
-        [
-            SystemMessage(
-                content=PEOPLE_EXTRACTION_SYSTEM_PROMPT
-            ),
-
-            HumanMessage(
-                content=PEOPLE_EXTRACTION_USER_PROMPT.format(
-                    research_results=research_text,
-                    time_window=time_window,
-                )
-            ),
-        ]
-    )
+    async with gemini_semaphore:
+        response = await llm.ainvoke(
+            [
+                SystemMessage(
+                    content=PEOPLE_EXTRACTION_SYSTEM_PROMPT
+                ),
+                HumanMessage(
+                    content=PEOPLE_EXTRACTION_USER_PROMPT.format(
+                        research_results=research_text,
+                        time_window=time_window,
+                    )
+                ),
+            ]
+        )
 
     return response.tweets
 
@@ -232,8 +252,7 @@ async def people_agent_node(
         [],
     )
 
-    # IMPORTANT:
-    # This comes from Planner through LangGraph state.
+    # Planner is the source of truth
     time_window = state["time_window"]
 
     tweets = await extract_people(
@@ -242,16 +261,38 @@ async def people_agent_node(
     )
 
     print("\n" + "=" * 80)
-    print("EXTRACTED PEOPLE POSTS:", len(tweets))
+    print(
+        "EXTRACTED PEOPLE POSTS:",
+        len(tweets)
+    )
     print("=" * 80)
 
     for tweet in tweets:
 
-        print("\nPERSON:", tweet.person)
-        print("TWEET:", tweet.tweet)
-        print("SUMMARY:", tweet.summary)
-        print("URL:", tweet.url)
-        print("ENGAGEMENT:", tweet.engagement)
+        print(
+            "\nPERSON:",
+            tweet.person
+        )
+
+        print(
+            "TWEET:",
+            tweet.tweet
+        )
+
+        print(
+            "SUMMARY:",
+            tweet.summary
+        )
+
+        print(
+            "URL:",
+            tweet.url
+        )
+
+        print(
+            "ENGAGEMENT:",
+            tweet.engagement
+        )
 
     return {
         "tweets": tweets,
