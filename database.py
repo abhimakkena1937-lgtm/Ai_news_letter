@@ -1,105 +1,80 @@
-import sqlite3
-from datetime import datetime
+import os
+from datetime import datetime, timezone
 
+import psycopg
+from dotenv import load_dotenv
 
-DB_NAME = "subscribers.db"
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is missing")
 
 
 def get_connection():
-    return sqlite3.connect(DB_NAME)
+    return psycopg.connect(DATABASE_URL)
 
 
 def init_db():
-
-    conn = get_connection()
-
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS subscribers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            status TEXT NOT NULL DEFAULT 'active',
-            created_at TEXT NOT NULL
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-def add_subscriber(email: str):
-
-    conn = get_connection()
-
-    cursor = conn.cursor()
-
-    try:
-
-        cursor.execute(
-            """
-            INSERT INTO subscribers
-            (email, status, created_at)
-            VALUES (?, ?, ?)
-            """,
-            (
-                email,
-                "active",
-                datetime.utcnow().isoformat()
-            )
-        )
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS subscribers (
+                    id SERIAL PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    created_at TEXT NOT NULL
+                )
+            """)
 
         conn.commit()
 
-        return True
 
-    except sqlite3.IntegrityError:
+def add_subscriber(email: str):
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            try:
+                cursor.execute("""
+                    INSERT INTO subscribers
+                    (email, status, created_at)
+                    VALUES (%s, %s, %s)
+                """, (
+                    email,
+                    "active",
+                    datetime.now(timezone.utc).isoformat()
+                ))
 
-        return False
+                conn.commit()
+                return True
 
-    finally:
-
-        conn.close()
+            except psycopg.errors.UniqueViolation:
+                conn.rollback()
+                return False
 
 
 def get_active_subscribers():
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT email
+                FROM subscribers
+                WHERE status = 'active'
+            """)
 
-    conn = get_connection()
-
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT email
-        FROM subscribers
-        WHERE status = 'active'
-        """
-    )
-
-    subscribers = [
-        row[0]
-        for row in cursor.fetchall()
-    ]
-
-    conn.close()
-
-    return subscribers
+            return [row[0] for row in cursor.fetchall()]
 
 
 def unsubscribe(email: str):
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                UPDATE subscribers
+                SET status = 'unsubscribed'
+                WHERE email = %s
+            """, (email,))
 
-    conn = get_connection()
+        conn.commit()
 
-    cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        UPDATE subscribers
-        SET status = 'unsubscribed'
-        WHERE email = ?
-        """,
-        (email,)
-    )
-
-    conn.commit()
-    conn.close()
+init_db()
