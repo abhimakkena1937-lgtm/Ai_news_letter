@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Daily</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 500px;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 12px;
+            border: none;
+            border-radius: 6px;
+            background: #111;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #333;
+        }
+
+        #message {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>🤖 AI Daily</h1>
+
+        <p>
+            Get the latest AI news, startups, research papers,
+            GitHub projects and AI people delivered to your inbox.
+        </p>
+
+        <form id="subscribeForm">
+
+            <input
+                type="email"
+                id="email"
+                placeholder="Enter your email"
+                required
+            >
+
+            <button type="submit">
+                Subscribe
+            </button>
+
+        </form>
+
+        <div id="message"></div>
+
+    </div>
+
+    <script>
+
+        const form =
+            document.getElementById("subscribeForm");
+
+        const message =
+            document.getElementById("message");
+
+        form.addEventListener(
+            "submit",
+            async function(event) {
+
+                event.preventDefault();
+
+                const email =
+                    document.getElementById("email").value;
+
+                message.innerText =
+                    "Subscribing...";
+
+                try {
+
+                    const response =
+                        await fetch(
+                            "/subscribe",
+                            {
+                                method: "POST",
+
+                                headers: {
+                                    "Content-Type":
+                                        "application/json"
+                                },
+
+                                body: JSON.stringify({
+                                    email: email
+                                })
+                            }
+                        );
+
+                    const data =
+                        await response.json();
+
+                    message.innerText =
+                        data.message;
+
+                } catch (error) {
+
+                    message.innerText =
+                        "Something went wrong.";
+
+                }
+
+            }
+        );
+
+    </script>
+
+</body>
+
+</html>

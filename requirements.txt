@@ -1,0 +1,11 @@
+langgraph
+langchain
+langchain-google-genai
+langchain-community
+tavily-python
+pydantic
+python-dotenv
+streamlit
+markdown
+httpx
+mcp
