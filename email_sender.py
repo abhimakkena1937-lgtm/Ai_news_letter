@@ -5,7 +5,6 @@ import base64
 
 import requests
 import resend
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,7 +14,6 @@ FROM_EMAIL = os.getenv("FROM_EMAIL")
 
 
 def prepare_inline_images(html: str):
-
     image_urls = re.findall(
         r'<img[^>]+src=["\'](https?://[^"\']+)["\']',
         html,
@@ -25,7 +23,6 @@ def prepare_inline_images(html: str):
     attachments = []
 
     for index, image_url in enumerate(image_urls, start=1):
-
         cid = f"newsletter-image-{index}"
 
         try:
@@ -34,7 +31,7 @@ def prepare_inline_images(html: str):
                 timeout=10,
                 headers={
                     "User-Agent": "Mozilla/5.0"
-                }
+                },
             )
 
             response.raise_for_status()
@@ -47,9 +44,10 @@ def prepare_inline_images(html: str):
 
             content_type = content_type.split(";")[0]
 
-            extension = mimetypes.guess_extension(
-                content_type
-            ) or ".jpg"
+            extension = (
+                mimetypes.guess_extension(content_type)
+                or ".jpg"
+            )
 
             filename = f"newsletter-image-{index}{extension}"
 
@@ -83,9 +81,8 @@ def prepare_inline_images(html: str):
 def send_newsletter(
     to_email: str,
     subject: str,
-    html: str
+    html: str,
 ):
-
     if not resend.api_key:
         raise RuntimeError(
             "RESEND_API_KEY is missing"
@@ -97,6 +94,15 @@ def send_newsletter(
         )
 
     html, attachments = prepare_inline_images(html)
+
+    print("FINAL HTML IMAGE REFERENCES:")
+
+    for match in re.findall(
+        r'<img[^>]+src=["\']([^"\']+)["\']',
+        html,
+        flags=re.IGNORECASE,
+    ):
+        print(match)
 
     response = resend.Emails.send({
         "from": FROM_EMAIL,
