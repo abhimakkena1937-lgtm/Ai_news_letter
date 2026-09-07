@@ -34,24 +34,40 @@ def init_db():
 def add_subscriber(email: str):
     with get_connection() as conn:
         with conn.cursor() as cursor:
-            try:
-                cursor.execute("""
-                    INSERT INTO subscribers
-                    (email, status, created_at)
-                    VALUES (%s, %s, %s)
-                """, (
-                    email,
-                    "active",
-                    datetime.now(timezone.utc).isoformat()
-                ))
 
-                conn.commit()
-                return True
+            cursor.execute("""
+                SELECT status
+                FROM subscribers
+                WHERE email = %s
+            """, (email,))
 
-            except psycopg.errors.UniqueViolation:
-                conn.rollback()
+            existing = cursor.fetchone()
+
+            if existing:
+                if existing[0] == "unsubscribed":
+                    cursor.execute("""
+                        UPDATE subscribers
+                        SET status = 'active'
+                        WHERE email = %s
+                    """, (email,))
+
+                    conn.commit()
+                    return True
+
                 return False
 
+            cursor.execute("""
+                INSERT INTO subscribers
+                (email, status, created_at)
+                VALUES (%s, %s, %s)
+            """, (
+                email,
+                "active",
+                datetime.now(timezone.utc).isoformat()
+            ))
+
+            conn.commit()
+            return True
 
 def get_active_subscribers():
     with get_connection() as conn:
@@ -72,9 +88,15 @@ def unsubscribe(email: str):
                 UPDATE subscribers
                 SET status = 'unsubscribed'
                 WHERE email = %s
+                AND status = 'active'
+                RETURNING email
             """, (email,))
 
+            result = cursor.fetchone()
+
         conn.commit()
+
+    return result is not None
 
 
 init_db()
