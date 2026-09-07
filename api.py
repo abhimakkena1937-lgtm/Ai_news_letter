@@ -4,12 +4,12 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 
-from database import init_db, add_subscriber, unsubscribe
-
+from database import add_subscriber, unsubscribe
+from fastapi import FastAPI, Query
 
 app = FastAPI(title="AI Daily Newsletter API")
 
-init_db()
+
 
 
 class SubscribeRequest(BaseModel):
@@ -33,5 +33,22 @@ def subscribe(request: SubscribeRequest):
 
 @app.post("/unsubscribe")
 def remove_subscriber(request: SubscribeRequest):
-    unsubscribe(str(request.email))
+    removed = unsubscribe(str(request.email))
+
+    if not removed:
+        return {"message": "This email is not currently subscribed."}
+
     return {"message": "Successfully unsubscribed"}
+
+@app.get("/unsubscribe")
+def unsubscribe_user(email: EmailStr = Query(...)):
+    removed = unsubscribe(str(email))
+
+    if not removed:
+        return {
+            "message": "This email is not currently subscribed."
+        }
+
+    return {
+        "message": "You have been successfully unsubscribed from AI Daily."
+    }
