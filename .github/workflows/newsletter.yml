@@ -27,6 +27,12 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Check database subscribers
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          uv run python -c "from database import get_active_subscribers; print('Active subscribers:', get_active_subscribers())"
+
       - name: Run newsletter
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
